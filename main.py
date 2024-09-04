@@ -1,41 +1,38 @@
+from flask import Flask, jsonify, render_template_string
 from itertools import islice
 import pandas as pd
 from youtube_comment_downloader import *
-downloader = YoutubeCommentDownloader()
-comments = downloader.get_comments_from_url(
-    'https://www.youtube.com/watch?v=ScMzIvxBSi4', sort_by=SORT_BY_POPULAR)
-print(comments)
 
-# comment_count = sum(1 for _ in comments)
-# print(f"评论数量：{comment_count}")
+app = Flask(__name__)
 
-# Initiate a dictionary to save all comments from Youtube Video
-all_comments_dict = {
-    'cid': [],
-    'text': [],
-    'time': [],
-    'author': [],
-    'channel': [],
-    'votes': [],
-    'replies': [],
-    'photo': [],
-    'heart': [],
-    'reply': [],
-    'time_parsed': []
-}
+@app.route('/')
+def home():
+    return render_template_string("""
+    <h1>Welcome to the YouTube Comment Downloader API</h1>
+    <p> use /api/comments</p>
+    """)
 
-# Take all comment and save it in dictionary using for loop
-for comment in comments:
-    for key in all_comments_dict.keys():
-        all_comments_dict[key].append(comment[key])
+@app.route('/api/comments', methods=['GET'])
+def get_comments():
+    downloader = YoutubeCommentDownloader()
+    comments = downloader.get_comments_from_url(
+        'https://www.youtube.com/watch?v=ScMzIvxBSi4', sort_by=SORT_BY_POPULAR)
 
-# Convert Dictionary to Dataframe using Pandas
-comments_df = pd.DataFrame(all_comments_dict)
+    all_comments_dict = {
+        'cid': [], 'text': [], 'time': [], 'author': [], 'channel': [],
+        'votes': [], 'replies': [], 'photo': [], 'heart': [], 'reply': [], 'time_parsed': []
+    }
 
-# Display Dataframe
-# display(comments_df)
+    # 限制评论数量，例如只取前100条
+    for comment in islice(comments, 100):
+        for key in all_comments_dict.keys():
+            all_comments_dict[key].append(comment[key])
 
-# comments_df.to_excel('comments_data.xlsx', index=False)
-comments_df.to_csv('comments_data.csv', index=False)
-# for comment in islice(comments, 10):
-#     print(comment)
+    return jsonify(all_comments_dict)
+
+@app.route('/_ah/health')
+def health_check():
+    return 'OK', 200
+
+if __name__ == '__main__':
+    app.run(debug=True)
