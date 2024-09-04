@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, render_template_string
+from flask import Flask, jsonify, render_template_string, request
 from itertools import islice
 import pandas as pd
 from youtube_comment_downloader import *
@@ -14,21 +14,28 @@ def home():
 
 @app.route('/api/comments', methods=['GET'])
 def get_comments():
+    video_url = request.args.get('url')
+    if not video_url:
+        return jsonify({"error": "Provide a YouTube video URL"}), 400
+
+    print("video_url is ", video_url)
     downloader = YoutubeCommentDownloader()
-    comments = downloader.get_comments_from_url(
-        'https://www.youtube.com/watch?v=ScMzIvxBSi4', sort_by=SORT_BY_POPULAR)
+    try:
+        comments = downloader.get_comments_from_url(video_url, sort_by=SORT_BY_POPULAR)
 
-    all_comments_dict = {
-        'cid': [], 'text': [], 'time': [], 'author': [], 'channel': [],
-        'votes': [], 'replies': [], 'photo': [], 'heart': [], 'reply': [], 'time_parsed': []
-    }
+        all_comments_dict = {
+            'cid': [], 'text': [], 'time': [], 'author': [], 'channel': [],
+            'votes': [], 'replies': [], 'photo': [], 'heart': [], 'reply': [], 'time_parsed': []
+        }
 
-    # 限制评论数量，例如只取前100条
-    for comment in islice(comments, 100):
-        for key in all_comments_dict.keys():
-            all_comments_dict[key].append(comment[key])
+        # 限制评论数量，例如只取前100条
+        for comment in islice(comments, 100):
+            for key in all_comments_dict.keys():
+                all_comments_dict[key].append(comment[key])
 
-    return jsonify(all_comments_dict)
+        return jsonify(all_comments_dict)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/_ah/health')
 def health_check():
