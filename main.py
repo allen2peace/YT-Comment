@@ -64,14 +64,16 @@ def comments_file():
         
         # 生成带有时间戳和毫秒的文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        filename = f"youtube_comments_{timestamp}.xlsx"
         
-        # 确保 'downloads' 文件夹存在
-        os.makedirs('downloads', exist_ok=True)
-        
-        # 将文件保存在 'downloads' 文件夹中
-        file_path = os.path.join('downloads', filename)
-        df.to_excel(file_path, index=False)
+        try:
+            filename = f"youtube_comments_{timestamp}.xlsx"
+            file_path = os.path.join('downloads', filename)
+            df.to_excel(file_path, index=False)
+        except ImportError:
+            # 如果openpyxl不可用，使用CSV格式
+            filename = f"youtube_comments_{timestamp}.csv"
+            file_path = os.path.join('downloads', filename)
+            df.to_csv(file_path, index=False)
 
         return jsonify({"message": "file saved", "filename": filename})
     except Exception as e:

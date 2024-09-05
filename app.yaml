@@ -1,5 +1,5 @@
 runtime: python39  # 或者你使用的Python版本
 entrypoint: gunicorn -b :$PORT main:app
-handlers:
-- url: /.*
-  script: auto
+
+requirements:
+  - requirements.txt
