@@ -4,6 +4,8 @@ import pandas as pd
 from youtube_comment_downloader import *
 from datetime import datetime
 import os
+from google.cloud import storage
+import io
 
 app = Flask(__name__)
 
@@ -62,20 +64,33 @@ def comments_file():
 
         df = pd.DataFrame(all_comments_dict)
         
-        # 生成带有时间戳和毫秒的文件名
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        filename = f"youtube_comments_{timestamp}.xlsx"
         
-        try:
-            filename = f"youtube_comments_{timestamp}.xlsx"
-            file_path = os.path.join('downloads', filename)
-            df.to_excel(file_path, index=False)
-        except ImportError:
-            # 如果openpyxl不可用，使用CSV格式
-            filename = f"youtube_comments_{timestamp}.csv"
-            file_path = os.path.join('downloads', filename)
-            df.to_csv(file_path, index=False)
-
-        return jsonify({"message": "file saved", "filename": filename})
+        # 创建一个字节流
+        output = io.BytesIO()
+        
+        # 将DataFrame写入字节流
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        
+        # 重置流的位置到开始
+        output.seek(0)
+        
+        # 初始化Google Cloud Storage客户端
+        storage_client = storage.Client()
+        
+        # 获取你的存储桶（请替换为你的存储桶名称）
+        bucket = storage_client.bucket('yt-comments-bucket')
+        
+        # 创建一个新的blob并上传文件
+        blob = bucket.blob(filename)
+        blob.upload_from_file(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        
+        # 生成文件的公共URL（可选，取决于你的存储桶权限）
+        file_url = blob.public_url
+        
+        return jsonify({"message": "file saved", "filename": filename, "url": file_url})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
