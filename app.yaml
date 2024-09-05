@@ -1,5 +1,13 @@
 runtime: python39  # 或者你使用的Python版本
 entrypoint: gunicorn -b :$PORT main:app
 
-requirements:
-  - requirements.txt
+# 添加这个部分来指定依赖项
+env_variables:
+  PYTHONUNBUFFERED: "1"
+
+# 移除 requirements 属性
+
+# 添加这个部分来指定静态文件
+handlers:
+- url: /.*
+  script: auto
