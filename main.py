@@ -89,6 +89,7 @@ def comments_file():
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         filename = f"youtube_comments_{timestamp}.xlsx"
         
+        start_time = time.time()
         # 创建一个字节流
         output = io.BytesIO()
         
