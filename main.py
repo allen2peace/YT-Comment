@@ -1,11 +1,16 @@
 from flask import Flask, jsonify, render_template_string, request
 from itertools import islice
 import pandas as pd
-from youtube_comment_downloader import *
+from youtube_comment_downloader import YoutubeCommentDownloader, SORT_BY_POPULAR
 from datetime import datetime
 import os
 from google.cloud import storage
 import io
+import logging
+import time
+
+# 在文件开头设置日志级别
+logging.basicConfig(level=logging.DEBUG)
 
 app = Flask(__name__)
 
@@ -19,6 +24,7 @@ def home():
 @app.route('/api/comments', methods=['GET'])
 def get_comments():
     video_url = request.args.get('url')
+    logging.debug(f"Received video URL: {video_url}")
     if not video_url:
         return jsonify({"error": "Provide a YouTube video URL"}), 400
 
@@ -33,17 +39,30 @@ def get_comments():
         }
 
         # 限制评论数量，例如只取前100条
+        comment_count = 0
         for comment in islice(comments, 100):
             for key in all_comments_dict.keys():
                 all_comments_dict[key].append(comment[key])
+            comment_count += 1
 
-        return jsonify(all_comments_dict)
+        # 添加评论数量到返回的数据中
+        response_data = {
+            "comment_count": comment_count,
+            "comments": all_comments_dict
+        }
+
+        return jsonify(response_data)
+    except ValueError as ve:
+        logging.error(f"Invalid URL: {str(ve)}")
+        return jsonify({"error": f"Invalid URL: {str(ve)}"}), 400
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Error fetching comments: {str(e)}")
+        return jsonify({"error": f"Error fetching comments: {str(e)}"}), 500
 
 @app.route('/api/commentsFile', methods=['GET'])
 def comments_file():
     video_url = request.args.get('url')
+    logging.debug(f"Received video URL for file generation: {video_url}")
     if not video_url:
         return jsonify({"error": "Provide a YouTube video URL"}), 400
 
@@ -51,16 +70,19 @@ def comments_file():
     downloader = YoutubeCommentDownloader()
     try:
         comments = downloader.get_comments_from_url(video_url, sort_by=SORT_BY_POPULAR)
-
+        print("comments is ", comments)
         all_comments_dict = {
             'cid': [], 'text': [], 'time': [], 'author': [], 'channel': [],
             'votes': [], 'replies': [], 'photo': [], 'heart': [], 'reply': [], 'time_parsed': []
         }
 
+        comment_count = 0
+
         # 限制评论数量，例如只取前100条
         for comment in islice(comments, 100):
             for key in all_comments_dict.keys():
                 all_comments_dict[key].append(comment[key])
+            comment_count += 1
 
         df = pd.DataFrame(all_comments_dict)
         
@@ -90,7 +112,9 @@ def comments_file():
         # 生成文件的公共URL（可选，取决于你的存储桶权限）
         file_url = blob.public_url
         
-        return jsonify({"message": "file saved", "filename": filename, "url": file_url})
+        logging.info(f"File generation and upload took {time.time() - start_time} seconds")
+        
+        return jsonify({"message": "file saved", "filename": filename, "url": file_url, "comment_count": comment_count, "thumb": ""})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
