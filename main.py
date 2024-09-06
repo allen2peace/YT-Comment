@@ -87,35 +87,42 @@ def comments_file():
         df = pd.DataFrame(all_comments_dict)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        filename = f"youtube_comments_{timestamp}.xlsx"
+        excel_filename = f"youtube_comments_{timestamp}.xlsx"
+        csv_filename = f"youtube_comments_{timestamp}.csv"
         
         start_time = time.time()
-        # 创建一个字节流
-        output = io.BytesIO()
         
-        # 将DataFrame写入字节流
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False)
-        
-        # 重置流的位置到开始
-        output.seek(0)
-        
-        # 初始化Google Cloud Storage客户端
+        # 创建 Google Cloud Storage 客户端
         storage_client = storage.Client()
-        
-        # 获取你的存储桶（请替换为你的存储桶名称）
         bucket = storage_client.bucket('yt-comments-bucket')
         
-        # 创建一个新的blob并上传文件
-        blob = bucket.blob(filename)
-        blob.upload_from_file(output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        # 保存 Excel 文件
+        excel_output = io.BytesIO()
+        with pd.ExcelWriter(excel_output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        excel_output.seek(0)
+        excel_blob = bucket.blob(excel_filename)
+        excel_blob.upload_from_file(excel_output, content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        excel_url = excel_blob.public_url
         
-        # 生成文件的公共URL（可选，取决于你的存储桶权限）
-        file_url = blob.public_url
+        # 保存 CSV 文件
+        csv_output = io.StringIO()
+        df.to_csv(csv_output, index=False)
+        csv_output.seek(0)
+        csv_blob = bucket.blob(csv_filename)
+        csv_blob.upload_from_string(csv_output.getvalue(), content_type='text/csv')
+        csv_url = csv_blob.public_url
         
         logging.info(f"File generation and upload took {time.time() - start_time} seconds")
         
-        return jsonify({"message": "file saved", "filename": filename, "url": file_url, "comment_count": comment_count, "thumb": ""})
+        return jsonify({
+            "message": "files saved",
+            "filename": excel_filename,
+            "url": excel_url,
+            "comment_count": comment_count,
+            "thumb": "",
+            "csvUrl": csv_url
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
